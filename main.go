@@ -8,9 +8,6 @@ func main() {
 
 	api := saq.New()
 
-	
-		
 	api.Query(string("red"))
-	
-	
+
 }

@@ -8,15 +8,19 @@ sales, and consumption within the province. And there's no nice, easy-to-use pub
 This is a simple go program that will scrape the SAQ website after making a query of your choice and save all that
 data to a csv file.
 
-The default query is "a" (A is for alcohol), but you can change it to anything you like. At this moment in time, 
+The default query is "a" (A is for Alcohol), but you can change it to anything you like. At this moment in time, 
 the "a" query returns 37801 results, which is a bit excessive. 
 
 
 # How to use
 
-Simple build with `go build`.
+Build with `go build`.
 
-And run with `./saq_scraper`.
+Run with `./saq_scraper`.
+
+Set `query` to whatever string you wish. Default is "a".
+
+Set `language` to either `saq.English` or `saq.Français`. Default is English. 
 
 
 

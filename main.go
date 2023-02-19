@@ -10,6 +10,9 @@ import (
 
 func main() {
 
+	query := "ugly"
+	language := saq.English
+
 	file_name := "saq_products.csv"
 	file, err := os.Create(file_name)
 
@@ -23,18 +26,17 @@ func main() {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	api := saq.New(saq.English)
-	query := "a"
+	scraper := saq.New(language)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
-	go api.Query(query, ctx, cancel)
+	go scraper.Query(query, ctx, cancel)
 
 	for {
 		select {
-		case product := <-api.List:
-			fmt.Println("product", product.Name)
+		case product := <-scraper.List:
+			fmt.Println("Found", product.Name)
 			err = writer.Write(product.ToStringArray())
 			if err != nil {
 				fmt.Println("error writing to file: ", err)

@@ -1,5 +1,7 @@
 package saq
 
+import "fmt"
+
 type Language int8
 
 const (
@@ -21,21 +23,37 @@ func (l Language) String() string {
 }
 
 type ProductInfo struct {
-	name              string
-	product_link      string
-	catagory          string
-	saq_code          string
-	volume            string
-	country_of_origin string
-	price             string
-	rating_summary    string
-	rating_actions    string
-	bottled_in_quebec bool
+	Name            string
+	ProductLink     string
+	Catagory        string
+	SaqCode         string
+	Volume          string
+	CountryOfOrigin string
+	Price           string
+	RatingSummary   string
+	RatingActions   string
+	BottledInQuebec bool
+}
+
+func (p ProductInfo) ToStringArray() []string {
+	return []string{
+		p.Name,
+		p.Catagory,
+		p.SaqCode,
+		p.Volume,
+		p.CountryOfOrigin,
+		p.Price,
+		p.RatingSummary,
+		p.RatingActions,
+		fmt.Sprintf("%v", p.BottledInQuebec),
+		p.ProductLink,
+	}
+
 }
 
 type SearchResults struct {
-	list  chan ProductInfo
-	query string
+	List  chan ProductInfo
+	Query string
 }
 
 type Filter struct {

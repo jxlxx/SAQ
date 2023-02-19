@@ -1,6 +1,7 @@
 package saq
 
 import (
+	"context"
 	"fmt"
 	"github.com/gocolly/colly"
 	"net/url"
@@ -10,20 +11,17 @@ import (
 type Api struct {
 	colly   *colly.Collector
 	lang    Language
-	results *SearchResults
+	List    chan ProductInfo
+	Context context.Context
 }
 
 func New(lang Language) *Api {
 
-	searchResults := SearchResults{
-		list:  make(chan ProductInfo, 100),
-		query: "",
-	}
-
 	return &Api{
 		colly:   colly.NewCollector(),
 		lang:    lang,
-		results: &searchResults,
+		List:    make(chan ProductInfo, 100),
+		Context: context.Background(),
 	}
 }
 
@@ -53,12 +51,7 @@ func trimSpace(s string) string {
 	return strings.Join(w, " ")
 }
 
-func (s *Api) Query(q string) {
-
-	s.results = &SearchResults{
-		query: q,
-		list:  make(chan ProductInfo, 100),
-	}
+func (s *Api) Query(q string, ctx context.Context, cancel context.CancelFunc) {
 
 	queryEndpoint := s.createQueryEndpoint(q)
 
@@ -76,27 +69,44 @@ func (s *Api) Query(q string) {
 		rating_actions := trimSpace(e.ChildText(searchCardPaths["rating_actions"]))
 
 		newProduct := ProductInfo{
-			name:              name,
-			product_link:      s.createProductLink(saq_code),
-			saq_code:          saq_code,
-			catagory:          tvc[0],
-			volume:            tvc[1],
-			country_of_origin: tvc[2],
-			price:             price,
-			rating_summary:    rating_summary,
-			rating_actions:    rating_actions,
-			bottled_in_quebec: false, // TODO
+			Name:            name,
+			ProductLink:     s.createProductLink(saq_code),
+			SaqCode:         saq_code,
+			Catagory:        tvc[0],
+			Volume:          tvc[1],
+			CountryOfOrigin: tvc[2],
+			Price:           price,
+			RatingSummary:   rating_summary,
+			RatingActions:   rating_actions,
+			BottledInQuebec: false, // TODO
 		}
 
-		s.results.list <- newProduct
+		if ctx.Err() != nil {
+			fmt.Println("context cancelled -- stopping search")
+			return
+		} else {
+			s.List <- newProduct
+		}
 
 	})
 
 	s.colly.OnHTML(nextPageResults, func(e *colly.HTMLElement) {
-		e.Request.Visit(e.Attr("href"))
+		err := e.Request.Visit(e.Attr("href"))
+		if err != nil {
+			fmt.Println("error visiting page: ", e.Attr("href"))
+			cancel()
+			return
+		}
 	})
 
-	s.colly.Visit(queryEndpoint)
+	err := s.colly.Visit(queryEndpoint)
+
+	if err != nil {
+		fmt.Println("context cancelled, error visiting page: ", queryEndpoint)
+		cancel()
+	}
+
+	defer close(s.List) // This means that the channel cannot be written to again
 
 }
 

@@ -1,19 +1,40 @@
 package saq
 
-type WineInfo struct {
+type Language int8
+
+const (
+	Français Language = iota
+	English
+)
+
+func (l Language) String() string {
+
+	switch l {
+	case Français:
+		return "fr"
+	case English:
+		return "en"
+	default:
+		return "fr"
+	}
+
+}
+
+type ProductInfo struct {
 	name              string
-	productLink       string
-	wine_type         string
+	product_link      string
+	catagory          string
 	saq_code          string
 	volume            string
 	country_of_origin string
-	price             float32
-	customer_rating   int32
+	price             string
+	rating_summary    string
+	rating_actions    string
 	bottled_in_quebec bool
 }
 
 type SearchResults struct {
-	wines []WineInfo
+	list  chan ProductInfo
 	query string
 }
 

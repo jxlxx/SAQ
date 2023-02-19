@@ -8,22 +8,29 @@ import (
 )
 
 type Api struct {
-	colly *colly.Collector
-	lang  string
+	colly   *colly.Collector
+	lang    Language
+	results *SearchResults
 }
 
-func New() *Api {
+func New(lang Language) *Api {
+
+	searchResults := SearchResults{
+		list:  make(chan ProductInfo, 100),
+		query: "",
+	}
 
 	return &Api{
-		colly: colly.NewCollector(),
-		lang:  "en",
+		colly:   colly.NewCollector(),
+		lang:    lang,
+		results: &searchResults,
 	}
 }
 
 func (s *Api) createQueryEndpoint(q string) string {
 	safeQuery := url.QueryEscape(q)
 
-	return fmt.Sprintf("https://saq.com/%s/catalogsearch/result/?q=%s", s.lang, safeQuery)
+	return fmt.Sprintf("https://saq.com/%s/catalogsearch/result/?q=%s", s.lang.String(), safeQuery)
 }
 
 var searchCardRoot = "div.product-item-content-container > div.product.details.product-item-details > div.product.content-wrapper"
@@ -47,6 +54,12 @@ func trimSpace(s string) string {
 }
 
 func (s *Api) Query(q string) {
+
+	s.results = &SearchResults{
+		query: q,
+		list:  make(chan ProductInfo, 100),
+	}
+
 	queryEndpoint := s.createQueryEndpoint(q)
 
 	s.colly.OnRequest(func(r *colly.Request) {
@@ -62,7 +75,20 @@ func (s *Api) Query(q string) {
 		rating_summary := trimSpace(e.ChildText(searchCardPaths["rating_summary"]))
 		rating_actions := trimSpace(e.ChildText(searchCardPaths["rating_actions"]))
 
-		fmt.Println(name, saq_code, tvc[0], tvc[1], tvc[2], price, rating_summary, rating_actions)
+		newProduct := ProductInfo{
+			name:              name,
+			product_link:      s.createProductLink(saq_code),
+			saq_code:          saq_code,
+			catagory:          tvc[0],
+			volume:            tvc[1],
+			country_of_origin: tvc[2],
+			price:             price,
+			rating_summary:    rating_summary,
+			rating_actions:    rating_actions,
+			bottled_in_quebec: false, // TODO
+		}
+
+		s.results.list <- newProduct
 
 	})
 
@@ -72,4 +98,8 @@ func (s *Api) Query(q string) {
 
 	s.colly.Visit(queryEndpoint)
 
+}
+
+func (s *Api) createProductLink(id string) string {
+	return fmt.Sprintf("https://saq.com/%s/%s", s.lang.String(), id)
 }

@@ -1,13 +1,13 @@
 package main
 
 import (
-	"vintemps/saq"
+	"saq_scraper/saq"
 )
 
 func main() {
 
 	api := saq.New()
 
-	api.Query(string("red"))
+	api.Query("a")
 
 }

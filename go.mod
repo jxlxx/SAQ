@@ -1,4 +1,4 @@
-module vintemps
+module saq_scraper
 
 go 1.19
 

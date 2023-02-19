@@ -1,7 +1,6 @@
 package saq
 
 import (
-	"context"
 	"fmt"
 	"github.com/gocolly/colly"
 	"net/url"
@@ -9,19 +8,17 @@ import (
 )
 
 type Scraper struct {
-	colly   *colly.Collector
-	lang    Language
-	List    chan ProductInfo
-	Context context.Context
+	colly *colly.Collector
+	lang  Language
+	List  chan ProductInfo
 }
 
 func New(lang Language) *Scraper {
 
 	return &Scraper{
-		colly:   colly.NewCollector(),
-		lang:    lang,
-		List:    make(chan ProductInfo, 100),
-		Context: context.Background(),
+		colly: colly.NewCollector(),
+		lang:  lang,
+		List:  make(chan ProductInfo, 100),
 	}
 }
 
@@ -51,17 +48,16 @@ func trimSpace(s string) string {
 	return strings.Join(w, " ")
 }
 
-func (s *Scraper) Query(q string, ctx context.Context, cancel context.CancelFunc) {
+func parseSAQCode(s string) string {
+	return strings.Split(s, " ")[2]
+}
+
+func (s *Scraper) Query(q string) {
 
 	queryEndpoint := s.createQueryEndpoint(q)
 
-	s.colly.OnRequest(func(r *colly.Request) {
-		fmt.Println("visiting", r.URL.String())
-	})
-
 	s.colly.OnError(func(r *colly.Response, e error) {
 		fmt.Println("error encountered: ", e)
-		cancel()
 		return
 	})
 
@@ -70,13 +66,11 @@ func (s *Scraper) Query(q string, ctx context.Context, cancel context.CancelFunc
 		name := trimSpace(e.ChildText(searchCardPaths["name"]))
 		tvc := strings.Split(trimSpace(e.ChildText(searchCardPaths["type_volume_country"])), " | ")
 		price := trimSpace(e.ChildText(searchCardPaths["price"]))
-		saq_code := trimSpace(e.ChildText(searchCardPaths["saq_code"]))
+		saq_code := parseSAQCode(e.ChildText(searchCardPaths["saq_code"]))
 		rating_summary := trimSpace(e.ChildText(searchCardPaths["rating_summary"]))
 		rating_actions := trimSpace(e.ChildText(searchCardPaths["rating_actions"]))
 
-		if name == "" || len(tvc) != 3 {
-			fmt.Println("error visiting page: ", e.Response.Request.URL)
-			cancel()
+		if len(name) == 0 || len(tvc) != 3 {
 			return
 		}
 
@@ -93,12 +87,7 @@ func (s *Scraper) Query(q string, ctx context.Context, cancel context.CancelFunc
 			BottledInQuebec: false, // TODO
 		}
 
-		if ctx.Err() != nil {
-			fmt.Println("context cancelled -- stopping search")
-			return
-		} else {
-			s.List <- newProduct
-		}
+		s.List <- newProduct
 
 	})
 
@@ -106,18 +95,11 @@ func (s *Scraper) Query(q string, ctx context.Context, cancel context.CancelFunc
 		err := e.Request.Visit(e.Attr("href"))
 		if err != nil {
 			fmt.Println("error visiting next page: ", e.Attr("href"))
-			cancel()
 			return
 		}
 	})
 
-	err := s.colly.Visit(queryEndpoint)
-
-	if err != nil {
-		fmt.Println("error visiting page: ", queryEndpoint)
-		cancel()
-		return
-	}
+	s.colly.Visit(queryEndpoint)
 
 	defer close(s.List) // This means that the channel cannot be written to again
 

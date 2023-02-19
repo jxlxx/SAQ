@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/csv"
 	"fmt"
 	"os"
@@ -10,14 +9,14 @@ import (
 
 func main() {
 
-	query := "ugly"
+	query := "Chartreuse"
 	language := saq.English
 
 	file_name := "saq_products.csv"
 	file, err := os.Create(file_name)
 
 	if err != nil {
-		fmt.Println("Cannot create file: ", file_name, err)
+		fmt.Println("error cannot create file: ", file_name, err)
 		return
 	}
 
@@ -28,22 +27,20 @@ func main() {
 
 	scraper := saq.New(language)
 
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-
-	go scraper.Query(query, ctx, cancel)
+	go scraper.Query(query)
 
 	for {
 		select {
-		case product := <-scraper.List:
-			fmt.Println("Found", product.Name)
+		case product, ok := <-scraper.List:
+			if !ok {
+				return
+			}
+			fmt.Println("Found: ", product.Name)
 			err = writer.Write(product.ToStringArray())
 			if err != nil {
 				fmt.Println("error writing to file: ", err)
 				return
 			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }

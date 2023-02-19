@@ -8,16 +8,16 @@ import (
 	"strings"
 )
 
-type Api struct {
+type Scraper struct {
 	colly   *colly.Collector
 	lang    Language
 	List    chan ProductInfo
 	Context context.Context
 }
 
-func New(lang Language) *Api {
+func New(lang Language) *Scraper {
 
-	return &Api{
+	return &Scraper{
 		colly:   colly.NewCollector(),
 		lang:    lang,
 		List:    make(chan ProductInfo, 100),
@@ -25,7 +25,7 @@ func New(lang Language) *Api {
 	}
 }
 
-func (s *Api) createQueryEndpoint(q string) string {
+func (s *Scraper) createQueryEndpoint(q string) string {
 	safeQuery := url.QueryEscape(q)
 
 	return fmt.Sprintf("https://saq.com/%s/catalogsearch/result/?q=%s", s.lang.String(), safeQuery)
@@ -51,12 +51,18 @@ func trimSpace(s string) string {
 	return strings.Join(w, " ")
 }
 
-func (s *Api) Query(q string, ctx context.Context, cancel context.CancelFunc) {
+func (s *Scraper) Query(q string, ctx context.Context, cancel context.CancelFunc) {
 
 	queryEndpoint := s.createQueryEndpoint(q)
 
 	s.colly.OnRequest(func(r *colly.Request) {
 		fmt.Println("visiting", r.URL.String())
+	})
+
+	s.colly.OnError(func(r *colly.Response, e error) {
+		fmt.Println("error encountered: ", e)
+		cancel()
+		return
 	})
 
 	s.colly.OnHTML(`div.product-item-info`, func(e *colly.HTMLElement) {
@@ -67,6 +73,12 @@ func (s *Api) Query(q string, ctx context.Context, cancel context.CancelFunc) {
 		saq_code := trimSpace(e.ChildText(searchCardPaths["saq_code"]))
 		rating_summary := trimSpace(e.ChildText(searchCardPaths["rating_summary"]))
 		rating_actions := trimSpace(e.ChildText(searchCardPaths["rating_actions"]))
+
+		if name == "" || len(tvc) != 3 {
+			fmt.Println("error visiting page: ", e.Response.Request.URL)
+			cancel()
+			return
+		}
 
 		newProduct := ProductInfo{
 			Name:            name,
@@ -93,7 +105,7 @@ func (s *Api) Query(q string, ctx context.Context, cancel context.CancelFunc) {
 	s.colly.OnHTML(nextPageResults, func(e *colly.HTMLElement) {
 		err := e.Request.Visit(e.Attr("href"))
 		if err != nil {
-			fmt.Println("error visiting page: ", e.Attr("href"))
+			fmt.Println("error visiting next page: ", e.Attr("href"))
 			cancel()
 			return
 		}
@@ -102,14 +114,15 @@ func (s *Api) Query(q string, ctx context.Context, cancel context.CancelFunc) {
 	err := s.colly.Visit(queryEndpoint)
 
 	if err != nil {
-		fmt.Println("context cancelled, error visiting page: ", queryEndpoint)
+		fmt.Println("error visiting page: ", queryEndpoint)
 		cancel()
+		return
 	}
 
 	defer close(s.List) // This means that the channel cannot be written to again
 
 }
 
-func (s *Api) createProductLink(id string) string {
+func (s *Scraper) createProductLink(id string) string {
 	return fmt.Sprintf("https://saq.com/%s/%s", s.lang.String(), id)
 }
